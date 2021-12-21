@@ -38,12 +38,12 @@ public class Load {
 	public static void main(String[] args) throws Exception {
 		// set up the streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		//本地调试UI
-		if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev")) {
-			Configuration conf = new Configuration();
-			conf.setString("rest.bind-port", "8081");
-		    env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
-		}
+//		//本地调试UI
+//		if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev")) {
+//			Configuration conf = new Configuration();
+//			conf.setString("rest.bind-port", "8081");
+//		    env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
+//		}
 		
 		env.getConfig().setGlobalJobParameters(
 			ParameterTool.fromPropertiesFile(Util.class.getClassLoader().getResourceAsStream("ilife.properties"))
