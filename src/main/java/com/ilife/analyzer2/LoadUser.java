@@ -14,31 +14,27 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
-import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
 
 import java.util.Properties;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-
-import com.ilife.analyzer2.common.InfoDeserializer;
 import com.ilife.analyzer2.common.Util;
 import com.ilife.analyzer2.entity.Fact;
-import com.ilife.analyzer2.entity.Info;
-import com.ilife.analyzer2.process.CalcMeasure;
 import com.ilife.analyzer2.process.ItemJsonCsvParser;
 import com.ilife.analyzer2.process.JsonParser;
+import com.ilife.analyzer2.process.UserJsonCsvParser;
 
 import ru.ivi.opensource.flinkclickhousesink.ClickHouseSink;
 import ru.ivi.opensource.flinkclickhousesink.model.ClickHouseSinkConst;
 
 /**
- * 从kafka接收info数据，根据定义的公式进行计算。
- * source：kafka.info 假设已经根据优先级排序，优先级高的先计算
- * process：根据itemKey读取其所有property及已计算info的数值，并启动groovy脚本完成计算
- * sink：clickhouse.info。同时写入缓存。【当前直接采用mysql.mod_variables，未来启用redis完成】
+ * 从kafka接收user数据，根据props打散为fact数据。
+ * source：kafka.user
+ * process：解析json，输出为fact
+ * sink：clickhouse.fact
  *
  */
-public class Measure {
+public class LoadUser {
 
 	public static void main(String[] args) throws Exception {
 		// set up the streaming execution environment
@@ -56,24 +52,23 @@ public class Measure {
 		
 		// 1.1 把kafka设置为source
 //		env.enableCheckpointing(5000); // checkpoint every 5000 msecs
-		KafkaSource<Info> json = KafkaSource.<Info>builder()
+		KafkaSource<String> json = KafkaSource.<String>builder()
 			.setBootstrapServers(Util.getConfig().getProperty("brokers"))
-			.setTopics("info")
-			.setGroupId("flink-api")
+			.setTopics("user")
+			.setGroupId("flink-fact")
 			.setStartingOffsets(OffsetsInitializer.earliest())
-//			.setValueOnlyDeserializer(new SimpleStringSchema())
-			.setDeserializer(KafkaRecordDeserializationSchema.of(new InfoDeserializer()))
+			.setValueOnlyDeserializer(new SimpleStringSchema())
+			//.setDeserializer(KafkaRecordDeserializationSchema.of(new JsonDeserialization(true, true)))
 			.build();
-		
-		DataStreamSource<Info> source = env.fromSource(json, WatermarkStrategy.noWatermarks(), "receive-info");
+		DataStreamSource<String> source = env.fromSource(json, WatermarkStrategy.noWatermarks(), "receive-user-json");
 		
 		DataStream<String> facts = source
-			.process(new CalcMeasure())
-			.name("calc-info");
+			.process(new UserJsonCsvParser())
+			.name("parse-user-json-to-csv");
 		
 		//clickhouse sink
 		Properties props = Util.getConfig();
-		props.put(ClickHouseSinkConst.TARGET_TABLE_NAME, "ilife.info");
+		props.put(ClickHouseSinkConst.TARGET_TABLE_NAME, "ilife.fact");
 		props.put("socket_timeout", Util.getConfig().getProperty("clickhouse.socket-timeout"));//重要：缺少socket_timeout会导致clickhouse连接超时
 		if(!Util.getConfig().get("common.mode").toString().equalsIgnoreCase("production")) {
 			props.put(ClickHouseSinkConst.MAX_BUFFER_SIZE, "10");//本地调试小批量写入查看结果
@@ -81,14 +76,14 @@ public class Measure {
 		}
 		ClickHouseSink sink = new ClickHouseSink(props);
 		
-		facts.addSink(sink).name("upsert-info");
+		facts.addSink(sink).name("insert-clickhouse");
 		
 		if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev")) {
 			facts.print().name("print-console");
 		}
 
 		// execute program
-		env.execute("measure");
+		env.execute("load-user");
 	}
 }
 

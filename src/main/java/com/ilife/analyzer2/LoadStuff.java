@@ -20,20 +20,20 @@ import java.util.Properties;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import com.ilife.analyzer2.common.Util;
 import com.ilife.analyzer2.entity.Fact;
-import com.ilife.analyzer2.process.JsonCsvParser;
+import com.ilife.analyzer2.process.ItemJsonCsvParser;
 import com.ilife.analyzer2.process.JsonParser;
 
 import ru.ivi.opensource.flinkclickhousesink.ClickHouseSink;
 import ru.ivi.opensource.flinkclickhousesink.model.ClickHouseSinkConst;
 
 /**
- * 从kafka接收stuff/user数据，根据props打散为fact数据。
+ * 从kafka接收stuff数据，根据props打散为fact数据。
  * source：kafka.stuff
  * process：解析json，输出为fact
  * sink：clickhouse.fact
  *
  */
-public class Load {
+public class LoadStuff {
 
 	public static void main(String[] args) throws Exception {
 		// set up the streaming execution environment
@@ -62,8 +62,8 @@ public class Load {
 		DataStreamSource<String> source = env.fromSource(json, WatermarkStrategy.noWatermarks(), "receive-stuff-json");
 		
 		DataStream<String> facts = source
-			.process(new JsonCsvParser())
-			.name("parse-json-to-csv");
+			.process(new ItemJsonCsvParser())
+			.name("parse-stuff-json-to-csv");
 		
 		//clickhouse sink
 		Properties props = Util.getConfig();

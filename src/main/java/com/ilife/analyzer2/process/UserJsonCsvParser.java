@@ -18,18 +18,18 @@ import com.ilife.analyzer2.entity.Fact;
  * 将stuff/user json文本解析为按属性存储的Fact
  *
  */
-public class JsonCsvParser extends ProcessFunction<String, String> {
-	private static Logger logger = Logger.getLogger(JsonCsvParser.class);
+public class UserJsonCsvParser extends ProcessFunction<String, String> {
+	private static Logger logger = Logger.getLogger(UserJsonCsvParser.class);
     private static final long serialVersionUID = 1L;
     
-    String ignoreList = "task,url,meta,title,summary,images,link,status,@timestamp,@version,categoryId,profit,location,index,logo,address,_key,type";//忽略的字段，不需要进行打散，后续不用于计算用途
+    String ignoreList = "persona,authorize,country,qrScene,qrSceneStr,subscribeTime,subscribe,city,openId,sex,groupId,tagIds,language,remark,province,headImgUrl,sexDesc,nickname,subscribeScene,avatarUrl,privileges,nickName,unionId,updateOn,relationship";//忽略的字段，不需要进行打散，后续不用于计算用途
     String[] inputFields = {"_doc"};//需要输入的字段，第一个必须是json字段
     String[] outfields = {"property","value","category","itemKey"};
     
-    String itemKey = "";
-    String platform = "";
-    String category = "";
-    String categoryId = "";
+    String itemKey = "";//为用户doc的_key
+    String platform = "ilife";//用户来源固定：ilife
+    String category = "用户";//类目名称固定：用户
+    String categoryId = "user";//类目编码固定：user
 
     List<String> buffer = Lists.newArrayList();
     
@@ -37,30 +37,15 @@ public class JsonCsvParser extends ProcessFunction<String, String> {
 	public void processElement(String json, ProcessFunction<String, String>.Context context, Collector<String> collector)
 			throws Exception {
 		JSONObject doc = (JSONObject)JSONObject.parse(json);
-
-		if(doc.getJSONObject("meta") == null || 
-				doc.getJSONObject("meta").getString("category") == null || 
-				doc.getJSONObject("meta").getString("category").trim().length()==0) {
-			logger.warn("no categoryId found. skip.[json]"+json);
-			return;
-		}
 		
 		logger.debug("*********got kafka stream.[json]"+json);
 		
 		//获取基础字段信息，包括itemKey/platform/category/categoryId
 		itemKey = doc.getString("_key");
-		platform = doc.getString("source");
-		categoryId = doc.getJSONObject("meta")==null?"NA":doc.getJSONObject("meta").getString("category");
-		if(doc.get("category") instanceof JSONArray && doc.getJSONArray("category").size()>0) {
-			JSONArray arr = doc.getJSONArray("category");
-			for(int i=0;i<arr.size();i++)
-				category += " "+ arr.getString(i);
-			category = category.trim();
-		}else if(doc.get("category") instanceof JSONArray) {
-			category = "";
-		}else
-			category = doc.getString("category");
-		
+	    platform = "ilife";//用户来源固定：ilife
+	    category = "用户";//类目名称固定：用户
+	    categoryId = "user";//类目编码固定：user
+	    
 		parse("",doc);
 		
 		for(String record:buffer) {

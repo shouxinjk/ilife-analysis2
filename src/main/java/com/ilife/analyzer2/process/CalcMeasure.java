@@ -46,10 +46,12 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
         	value = shell.evaluate(info.getScript());//返回：text
         	info.setScore(Double.parseDouble(value.toString()));
         	info.setStatus(1);//修改计算状态
+        	//将当前计算结果作为后续计算的variable
+        	binding.setVariable(info.getDimensionKey(), info.getScore());
         }catch(Exception ex) {//出错则不做任何修改
         	logger.error("failed eval script.[script]"+info.getScript());
         	if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev"))
-        		info.setScore(0.7);//just for test
+        		info.setScore(0.7);//only for test
         }
         
 		//转换为csv返回
@@ -57,7 +59,7 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 	}
 	
 	private void getVariables(String itemKey){
-		if(cachedItemKey.equalsIgnoreCase(itemKey))
+		if(cachedItemKey.equalsIgnoreCase(itemKey))//同一个itemKey仅需获取一次
 			return;
 		cachedItemKey = itemKey;//切换itemKey并重新装载数据
 		binding = new Binding();
