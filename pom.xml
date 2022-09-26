@@ -189,6 +189,27 @@ under the License.
 					<target>${java.version}</target>
 				</configuration>
 			</plugin>
+			
+			<!-- Maven copy dependency -->
+			<plugin>
+			    <groupId>org.apache.maven.plugins</groupId>
+			    <artifactId>maven-dependency-plugin</artifactId>
+			    <version>2.4</version>
+			    <executions>
+			        <execution>
+			            <id>copy-dependencies</id>
+			            <phase>prepare-package</phase>
+			            <goals>
+			                <goal>copy-dependencies</goal>
+			            </goals>
+			            <configuration>
+			                <!-- outputDirectory>${project.build.directory}/lib</outputDirectory-->
+			                <!--includeScope>compile</includeScope-->
+			                <excludeScope>provided</excludeScope>
+			            </configuration>
+			        </execution>
+			    </executions>
+			</plugin>
 
 			<!-- We use the maven-shade plugin to create a fat jar that contains all necessary dependencies. -->
 			<!-- Change the value of <mainClass>...</mainClass> if your program entry point changes. -->

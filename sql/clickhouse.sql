@@ -87,7 +87,7 @@ ORDER BY (userKey,needId,actionCategory,actionType,objectType,objectKey)
 
 -- 用户需要汇总表
 -- 通过创建物化视图，使用AggregatingMergeTree表引擎。示例如下：
--- SELECT userKey,needType,needId,needName,needAlias,sumMerge(weight) FROM ilife.need_agg GROUP BY userKey,needType,needId;
+-- SELECT userKey,needType,sumMerge(weight) FROM ilife.need_agg GROUP BY userKey,needType
 CREATE MATERIALIZED VIEW ilife.need_agg 
 ENGINE = AggregatingMergeTree() 
 PARTITION BY userKey 
@@ -97,4 +97,88 @@ FROM ilife.need
 GROUP BY userKey, needType, needId,needName,needAlias
 
 
+-- 文章阅读明细表
+-- 使用ReplacingMergeTree，仅采用最后更新的数值
+-- 包含发布者、阅读者、阅读信息
+CREATE TABLE ilife.reads
+(  
+	eventId String,
+	publisherOpenid String,
+	publisherBrokerId String,
+	publisherNickname String,
+	publisherAvatarUrl String,
+	readerOpenid String,
+	readerNickname String,
+	readerAvatarUrl String,
+	articleId String,
+	articleTitle String,
+	articleUrl String,
+	points Int16,
+	readCount Int16,
+	ts DateTime 
+)  
+ENGINE = ReplacingMergeTree(ts)
+PARTITION BY toYYYYMM(ts)
+ORDER BY (eventId)
 
+-- 公众号关注明细表
+-- 使用ReplacingMergeTree，仅采用最后更新的数值
+-- 包含发布者、关注者信息
+CREATE TABLE ilife.subscribes
+(  
+	eventId String,
+	publisherOpenid String,
+	publisherBrokerId String,
+	publisherNickname String,
+	publisherAvatarUrl String,
+	subscriberOpenid String,
+	subscriberNickname String,
+	subscriberAvatarUrl String,
+	accountId String,
+	accountName String,
+	accountOriginalId String,
+	points Int16,
+	ts DateTime 
+)  
+ENGINE = ReplacingMergeTree(ts)
+PARTITION BY toYYYYMM(ts)
+ORDER BY (eventId)
+
+-- 短地址表：在外部分享时，将地址缩短
+-- 使用ReplacingMergeTree，仅采用最后更新的数值
+-- 包含fromBroker、fromUser、longUrl、shortUrl、ts
+CREATE TABLE ilife.urls
+(  
+	eventId String,
+	itemKey String,
+	fromBroker String,
+	fromUser String,
+	channel String,
+	longUrl String,
+	shortCode String,
+	ts DateTime 
+)  
+ENGINE = ReplacingMergeTree(ts)
+PARTITION BY toYYYYMM(ts)
+ORDER BY (eventId)
+
+
+-- 手动推送列表
+-- 使用ReplacingMergeTree，仅采用最后更新的数值
+-- 包含微信群、推送达人、itemType、itemKey、数据JSON、状态
+CREATE TABLE ilife.features
+(  
+	eventId String,
+	brokerId String,
+	groupType String,
+	groupId String,
+	groupName String,
+	itemType String,
+	itemKey String,
+	jsonStr String,
+	status String,
+	ts DateTime 
+)  
+ENGINE = ReplacingMergeTree(ts)
+PARTITION BY toYYYYMM(ts)
+ORDER BY (eventId)
