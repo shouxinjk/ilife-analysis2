@@ -21,7 +21,7 @@ public class JsonParser extends ProcessFunction<String, Fact> {
 	private static Logger logger = Logger.getLogger(JsonParser.class);
     private static final long serialVersionUID = 1L;
     
-    String ignoreList = "task,url,meta,title,summary,images,link,status,@timestamp,@version,categoryId,profit,location,index,logo,address";//忽略的字段，不需要进行打散，后续不用于计算用途
+    String ignoreList = "task,url,meta,title,summary,images,link,status,@timestamp,@version,categoryId,profit,location,index,logo,address,media,advice,poster";//忽略的字段，不需要进行打散，后续不用于计算用途
     String[] inputFields = {"_doc"};//需要输入的字段，第一个必须是json字段
     String[] outfields = {"property","value","category","itemKey"};
     

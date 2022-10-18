@@ -2,11 +2,7 @@
 
 --字典视图：将dict_***均建立为视图
 create view dict as 
-select category,label,score,"dict_platform" as origin from dict_platform
-union ALL
-select category,label,score,"dict_brand" as origin from dict_brand
-union ALL
-select category,label,score,"dict_material" as origin from dict_material
+select category_id as category,original_value as label,marked_value as score,id as origin from mod_dict_value where isMarked=1
 union ALL
 select category_id as category,original_value as label,marked_value as score,"ope_performance" as origin from ope_performance
 

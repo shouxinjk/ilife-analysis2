@@ -49,7 +49,7 @@ public class UserJsonCsvParser extends ProcessFunction<String, String> {
 		parse("",doc);
 		
 		for(String record:buffer) {
-			logger.info("try to emit.[csv]"+record);
+			logger.debug("try to emit.[csv]"+record);
 			collector.collect(record);
 		}
 	}

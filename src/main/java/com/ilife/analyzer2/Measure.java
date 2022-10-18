@@ -12,6 +12,7 @@ import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
@@ -43,12 +44,12 @@ public class Measure {
 	public static void main(String[] args) throws Exception {
 		// set up the streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-//		//本地调试UI
-//		if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev")) {
-//			Configuration conf = new Configuration();
-//			conf.setString("rest.bind-port", "8081");
-//		    env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
-//		}
+		//本地调试UI
+		if("dev".equalsIgnoreCase(Util.getConfig().get("common.mode").toString())) {
+			Configuration conf = new Configuration();
+			conf.setString("rest.bind-port", "8081");
+		    env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
+		}
 		
 		env.getConfig().setGlobalJobParameters(
 			ParameterTool.fromPropertiesFile(Util.class.getClassLoader().getResourceAsStream("ilife.properties"))
@@ -60,6 +61,7 @@ public class Measure {
 			.setBootstrapServers(Util.getConfig().getProperty("brokers"))
 			.setTopics("info")
 			.setGroupId("flink-api")
+			.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, Util.getConfig().getProperty("request.timeout.ms"))
 			.setStartingOffsets(OffsetsInitializer.earliest())
 //			.setValueOnlyDeserializer(new SimpleStringSchema())
 			.setDeserializer(KafkaRecordDeserializationSchema.of(new InfoDeserializer()))
@@ -74,8 +76,17 @@ public class Measure {
 		//clickhouse sink
 		Properties props = Util.getConfig();
 		props.put(ClickHouseSinkConst.TARGET_TABLE_NAME, "ilife.info");
-		props.put("socket_timeout", Util.getConfig().getProperty("clickhouse.socket-timeout"));//重要：缺少socket_timeout会导致clickhouse连接超时
-		if(!Util.getConfig().get("common.mode").toString().equalsIgnoreCase("production")) {
+		props.put("socket_timeout", Util.getConfig().getProperty("clickhouse.sink.timeout-sec"));//重要：缺少socket_timeout会导致clickhouse连接超时
+		
+//		props.put(ClickHouseSinkConst.TIMEOUT_SEC, Util.getConfig().getProperty("clickhouse.sink.timeout-sec"));//重要：缺少socket_timeout会导致clickhouse连接超时
+//		props.put(ClickHouseSinkConst.MAX_BUFFER_SIZE, Util.getConfig().getProperty("clickhouse.sink.max-buffer-size"));
+//		props.put(ClickHouseSinkConst.NUM_RETRIES, Util.getConfig().getProperty("clickhouse.sink.retries"));
+//		props.put(ClickHouseSinkConst.NUM_WRITERS, Util.getConfig().getProperty("clickhouse.sink.num-writers"));
+//		props.put(ClickHouseSinkConst.QUEUE_MAX_CAPACITY, Util.getConfig().getProperty("clickhouse.sink.queue-max-capacity"));
+//		props.put(ClickHouseSinkConst.FAILED_RECORDS_PATH, Util.getConfig().getProperty("clickhouse.sink.failed-records-path"));
+//		props.put(ClickHouseSinkConst.IGNORING_CLICKHOUSE_SENDING_EXCEPTION_ENABLED, Util.getConfig().getProperty("clickhouse.sink.ignoring-clickhouse-sending-exception-enabled"));
+
+		if("dev".equalsIgnoreCase(Util.getConfig().get("common.mode").toString())) {
 			props.put(ClickHouseSinkConst.MAX_BUFFER_SIZE, "10");//本地调试小批量写入查看结果
 			props.put("socket_timeout", 60000);//重要：缺少socket_timeout会导致clickhouse连接超时
 		}
@@ -83,7 +94,7 @@ public class Measure {
 		
 		facts.addSink(sink).name("upsert-info");
 		
-		if(Util.getConfig().get("common.mode").toString().equalsIgnoreCase("dev")) {
+		if("dev".equalsIgnoreCase(Util.getConfig().get("common.mode").toString())) {
 			facts.print().name("print-console");
 		}
 

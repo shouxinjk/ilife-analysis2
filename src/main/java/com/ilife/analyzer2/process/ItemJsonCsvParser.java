@@ -22,7 +22,7 @@ public class ItemJsonCsvParser extends ProcessFunction<String, String> {
 	private static Logger logger = Logger.getLogger(ItemJsonCsvParser.class);
     private static final long serialVersionUID = 1L;
     
-    String ignoreList = "task,url,meta,title,summary,images,link,status,@timestamp,@version,categoryId,profit,location,index,logo,address,_key,type";//忽略的字段，不需要进行打散，后续不用于计算用途
+    String ignoreList = "task,url,meta,title,summary,images,link,status,@timestamp,@version,categoryId,profit,location,index,logo,address,_key,type,media,poster,article";//忽略的字段，不需要进行打散，后续不用于计算用途
     String[] inputFields = {"_doc"};//需要输入的字段，第一个必须是json字段
     String[] outfields = {"property","value","category","itemKey"};
     
@@ -48,12 +48,13 @@ public class ItemJsonCsvParser extends ProcessFunction<String, String> {
 		logger.debug("*********got kafka stream.[json]"+json);
 		
 		//获取基础字段信息，包括itemKey/platform/category/categoryId
+		category = "";
 		itemKey = doc.getString("_key");
 		platform = doc.getString("source");
 		categoryId = doc.getJSONObject("meta")==null?"NA":doc.getJSONObject("meta").getString("category");
 		if(doc.get("category") instanceof JSONArray && doc.getJSONArray("category").size()>0) {
 			JSONArray arr = doc.getJSONArray("category");
-			for(int i=0;i<arr.size();i++)
+			for(int i=0;i<arr.size() && (" "+category+" ").indexOf(" "+arr.getString(i).trim()+" ")<0;i++)
 				category += " "+ arr.getString(i);
 			category = category.trim();
 		}else if(doc.get("category") instanceof JSONArray) {
@@ -64,7 +65,7 @@ public class ItemJsonCsvParser extends ProcessFunction<String, String> {
 		parse("",doc);
 		
 		for(String record:buffer) {
-			logger.info("try to emit.[csv]"+record);
+			logger.debug("try to emit.[csv]"+record);
 			collector.collect(record);
 		}
 	}
