@@ -16,7 +16,7 @@ public final class Info {
     private double weight=0;//标注值，初次加载默认为0
     private double score=0;//归一化得分，初始设置为0
     private String script="";
-    private int status=0;//标注状态：0待标注、1已标注
+    private int status=1;//标注状态：0待标注、1已标注 经过分析系统处理后认为已完成
     private Date ts = new Date();//时间戳
 
     public Info() {}
@@ -60,29 +60,29 @@ public final class Info {
         builder.append(fact.dimensionType);
         builder.append("', ");
         
-        builder.append("'");
+        builder.append("");
         builder.append(fact.priority);
-        builder.append("', ");
+        builder.append(", ");
         
-        builder.append("'");
+        builder.append("");
         builder.append(fact.feature);
-        builder.append("', ");
+        builder.append(", ");
         
-        builder.append("'");
+        builder.append("");
         builder.append(fact.weight);
-        builder.append("', ");
+        builder.append(", ");
         
         builder.append("'");
         builder.append(fact.script);
         builder.append("', ");
 
-        builder.append("'");
+        builder.append("");
         builder.append(fact.score);
-        builder.append("', ");
+        builder.append(", ");
         
-        builder.append("'");
+        builder.append("");
         builder.append(fact.status);
-        builder.append("', ");
+        builder.append(", ");
 
         builder.append("toDateTime(now())");
         builder.append(")");

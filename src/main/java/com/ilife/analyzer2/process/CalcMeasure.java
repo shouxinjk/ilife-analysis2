@@ -34,7 +34,7 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 	private static Logger logger = Logger.getLogger(CalcMeasure.class);
     private static final long serialVersionUID = 1L;
     
-    double defaultScore = 0.5;//默认参数值
+    double defaultScore = 0.7;//默认参数值
     
     String ignoreVariables = ",script,weighted,sum,ignore";//原始脚本中有类似 script weighted-sum 等，需要排除
 	Binding binding = null;//缓存对应itemKey的所有变量。TODO：注意，由于有优先级，缓存的变量将根据一个优先级而变化
@@ -43,6 +43,9 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 	public void processElement(Info info, ProcessFunction<Info, String>.Context context, Collector<String> collector)
 			throws Exception {
 		
+        info.setStatus(1);//修改计算状态：无论是否根据脚本计算均设置为已完成计算
+    	info.setScore( defaultScore );//直接设置默认值，避免阻塞
+    	
 		//默认所有参数设置为默认值：0.5
 		setDefaultValues(info.getItemKey(),info.getScript());
 		
@@ -53,33 +56,47 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 		GroovyShell shell = new GroovyShell(binding);
 		Object value = null;
 		
+		
 		//groovy脚本计算
         try {
-        	value = shell.evaluate(info.getScript());//返回：text
-        	try {
-        		info.setScore(Double.parseDouble(value.toString()));
-        	}catch(Exception ex) {
-        		info.setScore( 0.5);//默认设置为0.5
+        	logger.debug("try eval script. {itemKey:"+info.getItemKey()+",propKey:"+info.getDimensionKey()+",script:"+info.getScript()+"}");
+        	if(info.getScript()==null || info.getScript().trim().length()==0) {
+        		info.setScore( defaultScore );//如果脚本缺失则直接设置为默认值。需要业务侧设置好计算脚本
+        	}else {
+	        	value = shell.evaluate(info.getScript());//返回：text
+	        	try {
+	        		logger.debug("got eval result. {itemKey:"+info.getItemKey()+",propKey:"+info.getDimensionKey()+",script:"+info.getScript()+",result:"+value+"}");
+	        		info.setScore(Double.parseDouble(value.toString()));
+	        	}catch(Exception ex) {
+	        		logger.warn("eval failed. {itemKey:"+info.getItemKey()+",propKey:"+info.getDimensionKey()+",script:"+info.getScript()+",result:"+value+"}");
+	        	}
         	}
-        	info.setStatus(1);//修改计算状态
+            //设置加入缓存
+            Jedis jedis = null;
+            if(info.getItemKey()!=null && info.getItemKey().trim().length()>0
+            		&& info.getDimensionKey()!=null && info.getDimensionKey().trim().length()>0) {//debug中发现有itemkey为空的情况，此处进行保护，不进入jedis
+	            try {
+	            	jedis = Util.getJedisCachePool().getResource();
+	            	jedis.hset(info.getItemKey(), info.getDimensionKey(), ""+info.getScore());
+	            	jedis.close();
+	            }catch(Exception ex) {//出错则不做任何修改
+	    			logger.error("failed cache data. [itemKey] "+info.getItemKey()+" [dimensionKey] "+info.getDimensionKey());
+	    		}finally{  
+	    			try {
+	    				if(jedis!=null)jedis.close();  
+	    			}catch(Exception e) {
+	    				logger.error("failed return resource.",e);
+	    			}
+	            }
+            }
         	//将当前计算结果作为后续计算的variable
         	binding.setVariable(info.getDimensionKey(), info.getScore());
         }catch(Exception ex) {//出错则不做任何修改
-        	logger.error("failed eval script.[script]"+info.getScript());
-        	if("dev".equalsIgnoreCase(Util.getConfig().get("common.mode").toString()))
-        		info.setScore(0.7);//only for test
+        	logger.warn("failed eval script.use default value.[script]"+info.getScript());
         }
-        
-        //设置加入缓存
-        Jedis jedis = Util.getJedisCachePool().getResource();
-        try {
-        	jedis.hset(info.getItemKey(), info.getDimensionKey(), ""+info.getScore());
-        	jedis.close();
-        }catch(Exception ex) {//出错则不做任何修改
-        	logger.error("failed cache data. [itemKey] "+info.getItemKey()+" [dimensionKey] "+info.getDimensionKey());
-			if(jedis!=null)Util.getJedisCachePool().returnBrokenResource(jedis);
-		}
-		//转换为csv返回
+
+        //转换为csv返回
+        logger.debug("try upsert info. { "+Info.toCsv(info)+" }");
 		collector.collect(Info.toCsv(info));
 	}
 	
@@ -97,7 +114,7 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 		while(m.find()) { //仅在发现后进行
 			logger.debug("try to bind default value.[key]"+m.group(1));
 			if(m.group(1).trim().length()>0 && ignoreVariables.indexOf(m.group(1))<0)
-				binding.setVariable(m.group(1),0.5);
+				binding.setVariable(m.group(1),defaultScore);
 		}
 	}
 	
@@ -107,23 +124,32 @@ public class CalcMeasure extends ProcessFunction<Info, String> {
 			binding = new Binding();
 
 		//从缓存获取数值
-		Jedis jedis = Util.getJedisCachePool().getResource();
 		Map<String,String> cachedData = null;
+		Jedis jedis = null;
 		try{
+			jedis = Util.getJedisCachePool().getResource();
 			cachedData = jedis.hgetAll(itemKey);//按照itemKey缓存
 			jedis.close();
 		}catch(Exception ex) {
-			if(jedis!=null)Util.getJedisCachePool().returnBrokenResource(jedis);
-		}
+			logger.warn("failed retrive cache data. use default value. [itemKey] "+itemKey);
+		}finally{  
+			try {
+				if(jedis!=null)jedis.close();
+			}catch(Exception e) {
+				logger.error("failed return resource.",e);
+			}
+        } 
 		
 		//绑定到binding
 		if( cachedData != null) {
 			for(String key: cachedData.keySet()) {
+				if(key==null||key.trim().length()==0)continue;//过滤key值为空的情况
+				logger.debug("try bind cached data. itemKey:"+itemKey+" hash: {"+key+":"+cachedData.get(key)+"}");
 				try {
 					binding.setVariable(key, Double.parseDouble(cachedData.get(key)));
 				}catch(Exception ex) {
-					logger.error("failed to query values by itemKey."+ex.getMessage());
-					binding.setVariable(key, 0.5);//默认情况下直接用0.5
+					logger.debug("failed to query values by itemKey. use default value. [cacahed data] {"+key+":"+cachedData.get(key)+"}");
+					binding.setVariable(key, defaultScore);//默认情况下直接用0.5
 				}
 			}
 		}else {

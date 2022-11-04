@@ -12,6 +12,7 @@ import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 
@@ -55,7 +56,10 @@ public class LoadUser {
 		KafkaSource<String> json = KafkaSource.<String>builder()
 			.setBootstrapServers(Util.getConfig().getProperty("brokers"))
 			.setTopics("user")
-			.setGroupId("flink-fact")
+			.setGroupId("flink-api")
+			.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, Util.getConfig().getProperty("session.timeout.ms"))
+			.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, Util.getConfig().getProperty("request.timeout.ms"))
+			.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, Util.getConfig().getProperty("max.poll.records"))
 			.setStartingOffsets(OffsetsInitializer.earliest())
 			.setValueOnlyDeserializer(new SimpleStringSchema())
 			//.setDeserializer(KafkaRecordDeserializationSchema.of(new JsonDeserialization(true, true)))
@@ -68,6 +72,7 @@ public class LoadUser {
 		
 		//clickhouse sink
 		Properties props = Util.getConfig();
+		props.put(ClickHouseSinkConst.TARGET_TABLE_NAME, "ilife.fact");
 		props.put("socket_timeout", Util.getConfig().getProperty("clickhouse.sink.timeout-sec"));//重要：缺少socket_timeout会导致clickhouse连接超时
 		
 //		props.put(ClickHouseSinkConst.TIMEOUT_SEC, Util.getConfig().getProperty("clickhouse.sink.timeout-sec"));//重要：缺少socket_timeout会导致clickhouse连接超时
